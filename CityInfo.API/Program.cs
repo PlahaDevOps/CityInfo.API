@@ -17,13 +17,22 @@ using System.Reflection;
 using System.Security.Cryptography.Xml;
 using System.Text;
 
-
 Log.Logger = new LoggerConfiguration()
     .MinimumLevel.Debug()
     .WriteTo.Console()
     .CreateLogger();
 
 var builder = WebApplication.CreateBuilder(args);
+
+// wire up Azure Key Vault if configured
+var vaultUri = builder.Configuration["KeyVault:VaultUri"];
+if (!string.IsNullOrEmpty(vaultUri))
+{
+    builder.Configuration
+           .AddAzureKeyVault(
+               new Uri(vaultUri),
+               new DefaultAzureCredential());
+}
 
 //builder.Logging.ClearProviders();
 //builder.Logging.AddConsole();
@@ -38,7 +47,11 @@ if (environment == Environments.Development)
 }
 else
 {
+    /* Old KeyVault/SecretClient block commented out:
     var secretClient = new SecretClient(
+        new Uri(builder.Configuration["KeyVault:VaultUri"]),
+        new DefaultAzureCredential());
+    */
 
     builder.Host.UseSerilog(
         (context, loggerConfiguration) => loggerConfiguration
@@ -51,26 +64,15 @@ else
             }, TelemetryConverter.Traces));
 }
 
-
 // Add services to the container.
 
 builder.Services.AddControllers(options =>
 {
     options.ReturnHttpNotAcceptable = true;
 }).AddNewtonsoftJson()
-.AddXmlDataContractSerializerFormatters();
+  .AddXmlDataContractSerializerFormatters();
 
 builder.Services.AddProblemDetails();
-//builder.Services.AddProblemDetails(options =>
-//{
-//    options.CustomizeProblemDetails = ctx =>
-//    {
-//        ctx.ProblemDetails.Extensions.Add("additionalInfo",
-//            "Additional info example");
-//        ctx.ProblemDetails.Extensions.Add("server", 
-//            Environment.MachineName);
-//    };
-//});
 
 builder.Services.AddSingleton<FileExtensionContentTypeProvider>();
 
@@ -120,13 +122,11 @@ builder.Services.AddApiVersioning(setupAction =>
     setupAction.AssumeDefaultVersionWhenUnspecified = true;
     setupAction.DefaultApiVersion = new ApiVersion(1, 0);
 }).AddMvc()
-.AddApiExplorer(setupAction =>
+  .AddApiExplorer(setupAction =>
 {
     setupAction.SubstituteApiVersionInUrl = true;
 });
 
-// Learn more about configuring Swagger/OpenAPI at
-// https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
 
 var apiVersionDescriptionProvider = builder.Services.BuildServiceProvider()
@@ -189,9 +189,6 @@ if (!app.Environment.IsDevelopment())
 
 app.UseForwardedHeaders();
 
-
-//if (app.Environment.IsDevelopment())
-//{
 app.UseSwagger();
 app.UseSwaggerUI(setupAction =>
 {
@@ -203,7 +200,6 @@ app.UseSwaggerUI(setupAction =>
             description.GroupName.ToUpperInvariant());
     }
 });
-//}
 
 app.UseHttpsRedirection();
 
@@ -219,4 +215,3 @@ app.UseEndpoints(endpoints =>
 });
 
 app.Run();
-
