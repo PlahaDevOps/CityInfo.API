@@ -399,4 +399,4 @@ FodyWeavers.xsd
 
 # SQLite temporary files 
 *.db-shm
-*.db-wal
+*.db-wal.DS_Store
